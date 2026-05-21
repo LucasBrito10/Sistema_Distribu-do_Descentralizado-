@@ -1,0 +1,117 @@
+# Como usar (em cada máquina):
+#
+#   export SETOR_NOME=SETOR_NORTE
+#   export CLUSTER_IPS=192.168.1.10,192.168.1.11,192.168.1.12,192.168.1.13
+#   export PUBLIC_ADDRESS=192.168.1.10   # IP físico DESTA máquina
+#   docker compose up -d
+#
+# SETOR_NOME    : identificador único do setor desta máquina (SETOR_NORTE, SETOR_SUL, etc.)
+# CLUSTER_IPS   : IPs físicos de TODAS as máquinas do cluster (incluindo esta)
+# PUBLIC_ADDRESS: IP físico desta máquina — usado pelo Hazelcast para se anunciar
+#                 aos outros membros através da rede física (sem isso o Hazelcast
+#                 anuncia o IP interno da bridge Docker, que outras máquinas não alcançam)
+#
+# CORREÇÃO MULTIMÁQUINA — Afinidade setor → broker:
+#   Os clientes (sensores/drones) recebem PUBLIC_ADDRESS como PRIMEIRO elemento
+#   de BROKER_IP, garantindo que conectem ao broker LOCAL da sua máquina.
+#   Os IPs do restante do cluster ficam como fallback de failover.
+#   Isso replica o comportamento do dev (docker-compose.dev.yaml), onde cada
+#   setor lista seu broker preferencial como primeiro elemento.
+
+services:
+  # =========================================================================
+  # BROKER LOCAL DA MÁQUINA
+  # =========================================================================
+  broker:
+    image: lucasbrito007/ormuz-broker:latest
+    container_name: broker-${SETOR_NOME}
+    environment:
+      PORT: "8080"
+      CLUSTER_IPS: "${CLUSTER_IPS}"
+      # IP físico desta máquina — necessário para o Hazelcast se anunciar
+      # corretamente aos brokers das outras máquinas pela rede física
+      PUBLIC_ADDRESS: "${PUBLIC_ADDRESS}"
+    ports:
+      - "8080:8080"   # Socket TCP dos clientes
+      - "5701:5701"   # Hazelcast cluster inter-broker
+    stdin_open: true
+    tty: true
+    networks:
+      - ormuz-net
+
+  # =========================================================================
+  # FÁBRICAS LOCAIS DA MÁQUINA
+  # =========================================================================
+  sensores:
+    image: lucasbrito007/ormuz-clients:latest
+    container_name: sensores-${SETOR_NOME}
+    environment:
+      APP_CLASS: "com.ormuz.client.app.AppSensores"
+      # PUBLIC_ADDRESS primeiro: garante conexão ao broker LOCAL (afinidade de setor).
+      # CLUSTER_IPS em seguida: mantém failover para os demais brokers do cluster.
+      BROKER_IP: "${PUBLIC_ADDRESS},${CLUSTER_IPS}"
+      BROKER_PORT: "8080"
+      SECTOR: "${SETOR_NOME}"
+    depends_on:
+      - broker
+    restart: on-failure
+    networks:
+      - ormuz-net
+
+  drones:
+    image: lucasbrito007/ormuz-clients:latest
+    container_name: drones-${SETOR_NOME}
+    environment:
+      APP_CLASS: "com.ormuz.client.app.AppFrotaDrones"
+      # PUBLIC_ADDRESS primeiro: garante conexão ao broker LOCAL (afinidade de setor).
+      # CLUSTER_IPS em seguida: mantém failover para os demais brokers do cluster.
+      BROKER_IP: "${PUBLIC_ADDRESS},${CLUSTER_IPS}"
+      BROKER_PORT: "8080"
+      SECTOR: "${SETOR_NOME}"
+    depends_on:
+      - broker
+    restart: on-failure
+    networks:
+      - ormuz-net
+
+  # =========================================================================
+  # FERRAMENTAS ADMINISTRATIVAS (Opcionais)
+  # Ativar com: docker compose --profile admin up -d
+  # =========================================================================
+  monitor-central:
+    image: lucasbrito007/ormuz-clients:latest
+    container_name: monitor-central
+    environment:
+      APP_CLASS: "com.ormuz.client.app.AppMonitor"
+      # Monitor conecta ao broker local e usa os demais como fallback
+      BROKER_IP: "${PUBLIC_ADDRESS},${CLUSTER_IPS}"
+      BROKER_PORT: "8080"
+      SECTOR: "ADMIN"
+    profiles:
+      - admin
+    depends_on:
+      - broker
+    restart: on-failure
+    stdin_open: true
+    tty: true
+    networks:
+      - ormuz-net
+
+  teste-carga:
+    image: lucasbrito007/ormuz-clients:latest
+    container_name: teste-carga
+    environment:
+      APP_CLASS: "com.ormuz.client.app.AppLoadTest"
+      BROKER_IP: "${PUBLIC_ADDRESS},${CLUSTER_IPS}"
+      BROKER_PORT: "8080"
+      SECTOR: "TESTE"
+    profiles:
+      - admin
+    depends_on:
+      - broker
+    networks:
+      - ormuz-net
+
+networks:
+  ormuz-net:
+    driver: bridge
