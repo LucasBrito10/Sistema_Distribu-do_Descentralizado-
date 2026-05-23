@@ -1,4 +1,4 @@
-# 🛰️ Ormuz — Infraestrutura Distribuída para Coordenação de Drones Autônomos
+# Infraestrutura Distribuída para Coordenação de Drones Autônomos
 
 > **TEC502 — Sistemas Distribuídos · UEFS**  
 > Problema 2: Desbloqueio do Estreito de Ormuz
@@ -7,7 +7,7 @@ Sistema distribuído descentralizado para coordenação de drones de monitoramen
 
 ---
 
-## 📐 Arquitetura da Solução
+## Arquitetura da Solução
 
 ### Estilo Arquitetural
 
@@ -49,7 +49,7 @@ O sistema adota um estilo de **broker distribuído com cluster peer-to-peer entr
 
 ---
 
-## 📡 Protocolo de Comunicação
+## Protocolo de Comunicação
 
 ### Tecnologia
 
@@ -76,7 +76,7 @@ As mensagens trafegam como objetos `Message` serializados. Os `CommandType` e `S
 
 ---
 
-## 🔒 Concorrência Distribuída
+## Concorrência Distribuída
 
 ### Exclusão Mútua de Drones
 
@@ -92,7 +92,7 @@ A fila respeita a propriedade de **ordering** (FIFO distribuído do Hazelcast), 
 
 ---
 
-## 🛡️ Confiabilidade
+## Confiabilidade
 
 ### Fila Distribuída e Replanejamento
 
@@ -112,7 +112,7 @@ O componente `AppLoadTest` gera múltiplas requisições concorrentes simulando 
 
 ---
 
-## 🐳 Execução com Docker
+## Execução com Docker
 
 ### Pré-requisitos
 
